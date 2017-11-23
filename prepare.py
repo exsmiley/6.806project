@@ -1,5 +1,4 @@
 '''Prepares the data for our neural networks'''
-from gensim.models.keyedvectors import KeyedVectors
 import gzip
 import numpy as np
 import torch.utils.data as d
@@ -17,12 +16,12 @@ def load_word_vector():
     return embeddings
 
 
-def load_tokenized_text_ubuntu():
+def load_tokenized_text(fname):
     '''Creates dictionary of {id: (title, body)}
     This is okay to have in memory since it's just like 160MB or so...
     '''
     data = {}
-    with gzip.open('ubuntu_data/text_tokenized.txt.gz') as f:
+    with gzip.open(fname) as f:
         for line in f:
             sections = line.strip().split('\t')
             body = sections[2] if len(sections) > 2 else ''
@@ -32,7 +31,8 @@ def load_tokenized_text_ubuntu():
 
 # use as global variable for reading from
 embeddings = load_word_vector()
-ubuntu_data = load_tokenized_text_ubuntu()
+ubuntu_data = load_tokenized_text('ubuntu_data/text_tokenized.txt.gz')
+android_data = load_tokenized_text('android_data/corpus.tsv.gz')
 
 
 def load_ubuntu_examples(dev=False, test=False):
@@ -53,30 +53,61 @@ def load_ubuntu_examples(dev=False, test=False):
                 yield (query, ubuntu_data[query], ubuntu_data[n], -1)
 
 
-def load_ubuntu_word_vectors(dev=False, test=False):
+def load_android_examples(dev=False, test=False):
+    '''yields data in the form of
+    (id, query (title, body), example (title, body), +1/-1)'''
+    assert dev or test  # can only be dev or test sets
+    neg_file = 'android_data/dev.neg.txt'
+    pos_file = 'android_data/dev.pos.txt'
+    if test:
+        neg_file = 'android_data/test.neg.txt'
+        pos_file = 'android_data/test.pos.txt'
+    with open(neg_file) as f:
+        for line in f:
+            query, compare = line.split()
+            yield (query, android_data[query], android_data[compare], -1)
+    with open(pos_file) as f:
+        for line in f:
+            query, compare = line.split()
+            yield (query, android_data[query], android_data[compare], 1)
+
+
+def load_example_word_vectors(dev=False, test=False, ubuntu=True):
     '''makes an average word vector for query/examples'''
     data = []
-    for (qid, query, example, label) in load_ubuntu_examples():
+    example_func = load_ubuntu_examples
+    if not ubuntu:
+        example_func = load_android_examples
+
+    for (qid, query, example, label) in example_func(dev=dev, test=test):
         query = ''.join(query).split()
         example = ''.join(example).split()
 
         query_vec = np.zeros(200)
         example_vec = np.zeros(200)
-
+        count = 0
         for word in query:
             if word in embeddings:
+                count += 1
                 query_vec += embeddings[word]
+        if count > 0:
+            query_vec = query_vec/count
+            count = 0
         for word in example:
             if word in embeddings:
                 example_vec += embeddings[word]
+                count += 1
+        if count > 0:
+            example_vec = example_vec/count
         data.append((qid, query_vec, example_vec, label))
     return data
 
 
 class UbuntuDataSet(d.Dataset):
+    '''Loads the training set for the Ubuntu Dataset'''
 
     def __init__(self):
-        self.data = load_ubuntu_word_vectors()
+        self.data = load_example_word_vectors(ubuntu=True)
 
     def __getitem__(self, index):
         (qid, query_vec, example_vec, label) = self.data[index]
