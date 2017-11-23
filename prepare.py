@@ -102,6 +102,29 @@ def load_example_word_vectors(dev=False, test=False, ubuntu=True):
         data.append((qid, query_vec, example_vec, label))
     return data
 
+def load_sequential_word_vectors(dev=False, test=False, ubuntu=True):
+    '''makes a list of word vectors for query/examples'''
+    data = []
+    example_func = load_ubuntu_examples
+    if not ubuntu:
+        example_func = load_android_examples
+
+    for (qid, query, example, label) in example_func(dev=dev, test=test):
+        query = ''.join(query).split()
+        example = ''.join(example).split()
+
+        query_embeddings = []
+        example_embeddings = []
+
+        for word in query:
+            if word in embeddings:
+                query_embeddings.append(embeddings[word])
+        for word in example:
+            if word in embeddings:
+                example_embeddings.append(embeddings[word])
+        data.append((qid, query_embeddings, example_embeddings, label))
+    return data
+
 
 class UbuntuDataSet(d.Dataset):
     '''Loads the training set for the Ubuntu Dataset'''
@@ -112,6 +135,23 @@ class UbuntuDataSet(d.Dataset):
     def __getitem__(self, index):
         (qid, query_vec, example_vec, label) = self.data[index]
         return torch.from_numpy(np.concatenate((query_vec, example_vec))), label
+
+    def __len__(self):
+        return len(self.data)
+
+
+class UbuntuSequentialDataSet(d.Dataset):
+    '''Loads the training set for the Ubuntu Dataset with sequential word vectors'''
+
+    def __init__(self):
+        self.data = load_example_word_vectors(ubuntu=True)
+
+    def __getitem__(self, index):
+        # query_vecs and example_vecs are lists of length 200 word vectors
+        (qid, query_vecs, example_vecs, label) = self.data[index]
+        # return torch.from_numpy(np.concatenate((query_vec, example_vec))), label
+        # TODO
+        raise NotImplementedError
 
     def __len__(self):
         return len(self.data)
