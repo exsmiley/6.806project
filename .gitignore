@@ -1,6 +1,4 @@
 .DS_Store
-text_tokenized.txt
-vector/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
