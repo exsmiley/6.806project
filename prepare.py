@@ -144,10 +144,10 @@ class UbuntuSequentialDataSet(d.Dataset):
     '''Loads the training set for the Ubuntu Dataset with sequential word vectors'''
 
     def __init__(self):
-        self.data = load_example_word_vectors(ubuntu=True)
+        self.data = load_sequential_word_vectors(ubuntu=True)
 
     def __getitem__(self, index):
-        # query_vecs and example_vecs are lists of length 200 word vectors
+        # query_vecs and example_vecs are lists consisting of items that are length 200 word vectors
         (qid, query_vecs, example_vecs, label) = self.data[index]
         # return torch.from_numpy(np.concatenate((query_vec, example_vec))), label
         # TODO
