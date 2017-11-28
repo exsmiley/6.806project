@@ -1,8 +1,11 @@
 '''Prepares the data for our neural networks'''
 import gzip
 import numpy as np
+import torch
 import torch.utils.data as d
+import time
 
+start = time.time()
 
 def load_word_vector():
     embedding_path = 'vector/vectors_pruned.200.txt.gz'
@@ -43,14 +46,16 @@ def load_ubuntu_examples(dev=False, test=False):
         file = 'ubuntu_data/dev.txt'
     elif test:
         file = 'ubuntu_data/test.txt'
+    count = 0
     with open(file) as f:
         for line in f:
+            count += 1
             query, positive, negative = map(lambda x: x.split(), line.split('\t'))
             query = query[0]
-            for p in positive:
-                yield (query, ubuntu_data[query], ubuntu_data[p], 1)
+            p = ubuntu_data[positive[0]]
+            q = ubuntu_data[query]
             for n in negative:
-                yield (query, ubuntu_data[query], ubuntu_data[n], -1)
+                yield (q, p, ubuntu_data[n])
 
 
 def load_android_examples(dev=False, test=False):
@@ -72,69 +77,62 @@ def load_android_examples(dev=False, test=False):
             yield (query, android_data[query], android_data[compare], 1)
 
 
-def load_example_word_vectors(dev=False, test=False, ubuntu=True):
-    '''makes an average word vector for query/examples'''
-    data = []
-    example_func = load_ubuntu_examples
-    if not ubuntu:
-        example_func = load_android_examples
+def example_to_word_vector(query, pos, neg):
+    query = ''.join(query).split()
+    pos = ''.join(pos).split()
+    neg = ''.join(neg).split()
 
-    for (qid, query, example, label) in example_func(dev=dev, test=test):
-        query = ''.join(query).split()
-        example = ''.join(example).split()
-
-        query_vec = np.zeros(200)
-        example_vec = np.zeros(200)
+    query_vec = np.zeros(200)
+    pos_vec = np.zeros(200)
+    neg_vec = np.zeros(200)
+    count = 0
+    for word in query:
+        if word in embeddings:
+            count += 1
+            query_vec += embeddings[word]
+    if count > 0:
+        query_vec = query_vec/count
         count = 0
-        for word in query:
-            if word in embeddings:
-                count += 1
-                query_vec += embeddings[word]
-        if count > 0:
-            query_vec = query_vec/count
-            count = 0
-        for word in example:
-            if word in embeddings:
-                example_vec += embeddings[word]
-                count += 1
-        if count > 0:
-            example_vec = example_vec/count
-        data.append((qid, query_vec, example_vec, label))
-    return data
+    for word in pos:
+        if word in embeddings:
+            pos_vec += embeddings[word]
+            count += 1
+    if count > 0:
+        pos_vec = pos_vec/count
+        count = 0
+    for word in neg:
+        if word in embeddings:
+            neg_vec += embeddings[word]
+            count += 1
+    if count > 0:
+        neg_vec = neg_vec/count
+    return (query_vec, pos_vec, neg_vec)
 
-def load_sequential_word_vectors(dev=False, test=False, ubuntu=True):
-    '''makes a list of word vectors for query/examples'''
-    data = []
-    example_func = load_ubuntu_examples
-    if not ubuntu:
-        example_func = load_android_examples
+def example_to_seq_word_vector(qid, query, example, label):
+    query = ''.join(query).split()
+    example = ''.join(example).split()
 
-    for (qid, query, example, label) in example_func(dev=dev, test=test):
-        query = ''.join(query).split()
-        example = ''.join(example).split()
+    query_embeddings = []
+    example_embeddings = []
 
-        query_embeddings = []
-        example_embeddings = []
-
-        for word in query:
-            if word in embeddings:
-                query_embeddings.append(embeddings[word])
-        for word in example:
-            if word in embeddings:
-                example_embeddings.append(embeddings[word])
-        data.append((qid, query_embeddings, example_embeddings, label))
-    return data
+    for word in query:
+        if word in embeddings:
+            query_embeddings.append(embeddings[word])
+    for word in example:
+        if word in embeddings:
+            example_embeddings.append(embeddings[word])
+    return (qid, query_embeddings, example_embeddings, label)
 
 
 class UbuntuDataSet(d.Dataset):
     '''Loads the training set for the Ubuntu Dataset'''
 
     def __init__(self):
-        self.data = load_example_word_vectors(ubuntu=True)
+        self.data = list(load_ubuntu_examples())
 
     def __getitem__(self, index):
-        (qid, query_vec, example_vec, label) = self.data[index]
-        return torch.from_numpy(np.concatenate((query_vec, example_vec))), label
+        (query_vec, pos_vec, neg_vec) = example_to_word_vector(*self.data[index])
+        return torch.from_numpy(np.vstack((query_vec, pos_vec))).float(), torch.from_numpy(np.vstack((query_vec, neg_vec))).float(), 1.0
 
     def __len__(self):
         return len(self.data)
@@ -144,11 +142,11 @@ class UbuntuSequentialDataSet(d.Dataset):
     '''Loads the training set for the Ubuntu Dataset with sequential word vectors'''
 
     def __init__(self):
-        self.data = load_sequential_word_vectors(ubuntu=True)
+        self.data = list(load_ubuntu_examples())
 
     def __getitem__(self, index):
         # query_vecs and example_vecs are lists consisting of items that are length 200 word vectors
-        (qid, query_vecs, example_vecs, label) = self.data[index]
+        (qid, query_vecs, example_vecs, label) = example_to_seq_word_vector(*self.data[index])
         # return torch.from_numpy(np.concatenate((query_vec, example_vec))), label
         # TODO
         raise NotImplementedError
@@ -156,3 +154,8 @@ class UbuntuSequentialDataSet(d.Dataset):
     def __len__(self):
         return len(self.data)
 
+
+if __name__ == '__main__':
+    print "initial load_time:", time.time()-start
+    s = UbuntuDataSet()
+    print "total time:", time.time()-start
