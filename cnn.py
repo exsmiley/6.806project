@@ -91,8 +91,8 @@ def main():
                 print('[%d, %5d] loss: %.3f' %
                       (epoch + 1, i + 1, running_loss / 2000))
                 running_loss = 0.0
-        if i % 5 == 0:
-            torch.save(net, 'mytraining{}.pt'.format(i))
+        if epoch % 5 == 0:
+            torch.save(net, 'mytraining{}.pt'.format(epoch))
     torch.save(net, 'mytraininglast.pt')
 
     print('Finished Training')
