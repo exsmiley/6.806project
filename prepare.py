@@ -70,14 +70,9 @@ ubuntu_data = load_tokenized_text('ubuntu_data/text_tokenized.txt.gz', 'Ubuntu')
 # android_data = load_tokenized_text('android_data/corpus.tsv.gz', 'Android')
 
 
-def load_ubuntu_examples(dev=False, test=False):
+def load_ubuntu_examples(file):
     '''yields data in the form of
     (id, query (title, body), example (title, body), +1/-1)'''
-    file = 'ubuntu_data/train_random.txt'
-    if dev:
-        file = 'ubuntu_data/dev.txt'
-    elif test:
-        file = 'ubuntu_data/test.txt'
 
     print "Loading Data From " + file + "..."
 
@@ -162,8 +157,8 @@ def load_ubuntu_examples(dev=False, test=False):
 class UbuntuSequentialDataSet(d.Dataset):
     '''Loads the training set for the Ubuntu Dataset with sequential word vectors'''
 
-    def __init__(self):
-        self.data = list(load_ubuntu_examples())
+    def __init__(self, file):
+        self.data = list(load_ubuntu_examples(file))
 
     def __getitem__(self, index):
         qid, pid, nids = self.data[index]

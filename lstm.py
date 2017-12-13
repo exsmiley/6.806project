@@ -88,10 +88,7 @@ def run_epoch(data, model, optimizer, is_training, params):
         loss.backward()
         optimizer.step()
         running_loss += loss.data[0]
-        if i % 2000 == 1999:    # print every 2000 mini-batches
-            print('[%d, %5d] loss: %.3f' %
-                  (epoch + 1, i + 1, running_loss / 2000))
-            running_loss = 0.0
+
 
 def main():
 
@@ -109,7 +106,10 @@ def main():
                 'margin' : margin, 'learning_rate' : learning_rate,
                 'batch_size' : batch_size}
 
-    data = UbuntuSequentialDataSet()
+    train_data = UbuntuSequentialDataSet('ubuntu_data/train_random.txt')
+    dev_data = UbuntuSequentialDataSet('ubuntu_data/dev.txt')
+    test_data = UbuntuSequentialDataSet('ubuntu_data/test.txt')
+
 
 
 
@@ -117,9 +117,15 @@ def main():
 
     print('Started Training...\n')
 
-    run_model(data, model, is_training, params)
+    run_model(train_data, model, is_training, params)
 
     print('\nFinished Training!\n')
+
+    print('Started Evaluating...\n')
+
+    run_model(test_data, model, is_training, params)
+
+    print('\nFinished Evaluating!\n')
 
 if __name__ == '__main__':
     main()
