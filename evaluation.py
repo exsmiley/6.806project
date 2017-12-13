@@ -6,8 +6,15 @@ class Evaluation():
 
 		self.data = data
 
+    def evaluate(self):
+        p_at_one = self.precision(1)
+        p_at_five = self.precision(5)
+        map = self.map()
+        mrr = self.mrr()
+        return map, mrr, p_at_one, p_at_five
 
-	def Precision(self,precision_at):
+
+	def precision(self,precision_at):
 		scores = []
 		for item in self.data:
 			temp = item[:precision_at]
@@ -16,7 +23,7 @@ class Evaluation():
 		return sum(scores)/len(scores) if len(scores) > 0 else 0.0
 
 
-	def MAP(self):
+	def map(self):
 		scores = []
 		missing_MAP = 0
 		for item in self.data:
@@ -33,7 +40,7 @@ class Evaluation():
 		return sum(scores)/len(scores) if len(scores) > 0 else 0.0
 
 
-	def MRR(self):
+	def mrr(self):
 
 		scores = []
 		for item in self.data:
