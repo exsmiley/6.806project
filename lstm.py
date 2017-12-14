@@ -17,11 +17,7 @@ class QA_LSTM(nn.Module):
         self.lstm = nn.LSTM(emb_size, num_hidden)
         self.dropout = nn.Dropout(dropout_prob)
 
-        self.hidden = self.init_hidden()
 
-    def init_hidden(self):
-        return (autograd.Variable(torch.zeros(1, 1, self.num_hidden)),
-                autograd.Variable(torch.zeros(1, 1, self.num_hidden)))
 
     def forward(self, x):
         self.embedding_layer = nn.Embedding(x.shape()[0], self.emb_size)
@@ -55,39 +51,51 @@ def run_model(data, model, is_training, params):
     loss_func = nn.MarginRankingLoss(margin)
     optimizer = optim.SGD(model.parameters(), lr=learning_rate, momentum=momentum)
 
-    for epoch in tqdm.tqdm(range(num_epoches)):  # loop over the dataset multiple times
-        print "Running epoch:", epoch+1
-        run_epoch(data, model, optimizer, is_training, params)
+    for epoch in tqdm.tqdm(range(num_epoches)):
+        print "Running epoch:", epoch + 1
+        run_epoch(data, model, optimizer, loss_func, is_training, params)
         if i % 5 == 0:
             torch.save(net, 'mytraining{}.pt'.format(i))
     torch.save(net, 'mytraininglast.pt')
 
-def run_epoch(data, model, optimizer, is_training, params):
+def run_epoch(data, model, optimizer, loss_func, is_training, params):
 
     batch_size = params['batch_size']
-    loader = torch.utils.data.DataLoader(dataset, batch_size=4, shuffle=True)
+    loader = torch.utils.data.DataLoader(data, batch_size=batch_size, shuffle=True)
     running_loss = 0.0
+
+    model.train() if is_training else model.eval()
+
+
     for i, data in enumerate(loader):
         # get the inputs
-        question, candidate_set = data
+        q_title, q_body, c_titles, c_bodies, labels = data
 
         # wrap them in Variable
-        question_title, question_body = Variable(question[0]), Variable(question[1])
+        q_title, q_body = Variable(q_title), Variable(q_body)
 
-        question_title, question_body = Variable(question[0]), Variable(question[1])
+        c_titles, c_bodies = Variable(c_titles), Variable(c_bodies)
 
         # zero the parameter gradients
-        optimizer.zero_grad()
+        if is_training:
+            optimizer.zero_grad()
 
-        # forward + backward + optimize
-        output1 = net(input1).float()
-        output2 = net(input2).float()
-        # print output1, output2, labels
-        # labels = Variable(torch.ones(output1.size()[1]))
-        loss = criterion(output1, output2, labels)
-        loss.backward()
-        optimizer.step()
-        running_loss += loss.data[0]
+        q_enc = (model(q_body) + model(q_title)) / 2
+        c_enc = (model(c_titles) + model(c_bodies)) / 2
+
+        cos_sim = torch.nn.CosineSimilarity(2)
+        sims = cos_sim(q_enc, c_enc)
+
+
+
+        if is_training:
+            loss = loss_func(sims, target)
+            loss.backward()
+            optimizer.step()
+            running_loss += loss.data[0]
+        else:
+            pass
+
 
 
 def main():
@@ -100,15 +108,15 @@ def main():
     num_epoches = 50
     num_hidden = 400
     emb_size = 200
-    is_training = True
+
 
     params = {'num_epoches' : num_epoches, 'momentum' : momentum,
                 'margin' : margin, 'learning_rate' : learning_rate,
                 'batch_size' : batch_size}
 
     train_data = UbuntuSequentialDataSet('ubuntu_data/train_random.txt')
-    dev_data = UbuntuSequentialDataSet('ubuntu_data/dev.txt')
-    test_data = UbuntuSequentialDataSet('ubuntu_data/test.txt')
+    # dev_data = UbuntuSequentialDataSet('ubuntu_data/dev.txt')
+    # test_data = UbuntuSequentialDataSet('ubuntu_data/test.txt')
 
 
 
@@ -117,15 +125,19 @@ def main():
 
     print('Started Training...\n')
 
+    is_training = True
+
     run_model(train_data, model, is_training, params)
 
     print('\nFinished Training!\n')
 
-    print('Started Evaluating...\n')
+    print('Started Evaluating on Dev Set...\n')
+
+    is_training = False
 
     run_model(test_data, model, is_training, params)
 
-    print('\nFinished Evaluating!\n')
+    print('\nFinished Evaluating on Dev Set!\n')
 
 if __name__ == '__main__':
     main()

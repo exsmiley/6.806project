@@ -53,12 +53,19 @@ def load_tokenized_text(fname, name, body_trim_length=100):
             sections = line.strip().split('\t')
             qid, title, body  = sections[0], sections[1], sections[2] if len(sections) > 2 else ''
 
-            body = " ".join(body.split(' ')[:body_trim_length]) # Trims body to 100 words
-            body = [get_word_index(word) for word in body]
+            b = np.zeros(100)
+            body = " ".join(body.split(' ')[:body_trim_length-1]) # Trims body to 100 words
+            print(len(body))
+            for i, word in enumerate(body):
+                b[i] = get_word_index(word)
 
-            title = [get_word_index(word) for word in sections[1]]
+            t = np.zeros(100)
+            title = " ".join(title.split(' ')[:body_trim_length-1]) # Trims body to 100 words
 
-            data[qid] = (title, body)
+            for i, word in enumerate(title):
+                t[i] = get_word_index(word)
+
+            data[qid] = (t, b)
 
     print name + " Question Text Loaded! \n"
     return data
@@ -167,10 +174,15 @@ class UbuntuSequentialDataSet(d.Dataset):
         candidate_set = [pid] + neg_samples
 
         q = ubuntu_data[qid]
+        q_title, q_body = q
+
         c = [ubuntu_data[i] for i in candidate_set]
+        c_titles = [i[0] for i in c]
+        c_bodies = [i[1] for i in c]
+
         l = [1] + [0] * len(nids)
 
-        return q, c, l
+        return Tensor(q_title), Tensor(q_body), Tensor(c_titles), Tensor(c_bodies), Tensor(l)
 
 
     def __len__(self):

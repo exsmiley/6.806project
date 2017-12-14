@@ -7,10 +7,10 @@ class Evaluation():
 		self.data = data
 
     def evaluate(self):
-        p_at_one = self.precision(1)
-        p_at_five = self.precision(5)
-        map = self.map()
-        mrr = self.mrr()
+        p_at_one = self.precision(1) * 100
+        p_at_five = self.precision(5) * 100
+        map = self.map() * 100
+        mrr = self.mrr() * 100
         return map, mrr, p_at_one, p_at_five
 
 
