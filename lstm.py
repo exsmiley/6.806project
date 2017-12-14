@@ -69,7 +69,10 @@ def run_epoch(data, model, optimizer, is_training, params):
     running_loss = 0.0
     for i, data in enumerate(loader):
         # get the inputs
-        question, candidate_set = data
+        if is_training:
+            question, candidate_set, vector = data
+        else:
+            question, candidate_set, vector, bm25s = data
 
         # wrap them in Variable
         question_title, question_body = Variable(question[0]), Variable(question[1])
@@ -107,8 +110,8 @@ def main():
                 'batch_size' : batch_size}
 
     train_data = UbuntuSequentialDataSet('ubuntu_data/train_random.txt')
-    dev_data = UbuntuSequentialDataSet('ubuntu_data/dev.txt')
-    test_data = UbuntuSequentialDataSet('ubuntu_data/test.txt')
+    dev_data = UbuntuEvaluationDataSet('ubuntu_data/dev.txt')
+    test_data = UbuntuEvaluationDataSet('ubuntu_data/test.txt')
 
 
 

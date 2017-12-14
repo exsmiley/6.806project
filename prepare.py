@@ -76,14 +76,21 @@ def load_ubuntu_examples(file):
 
     print "Loading Data From " + file + "..."
 
-    count = 0
-    with open(file) as f:
-        for line in tqdm.tqdm(f):
-            count += 1
-            query, positive, negative = map(lambda x: x.split(), line.split('\t'))
-            query = query[0]
-            for p in positive:
-                yield (query, p, negative)
+    if 'dev' in file or 'test' in file:
+        with open(file) as f:
+            for line in tqdm.tqdm(f):
+                query, positive, negative, bm25 = map(lambda x: x.split(), line.split('\t'))
+                query = query[0]
+                for p in positive:
+                    yield (query, p, negative, bm25)
+
+    else:
+        with open(file) as f:
+            for line in tqdm.tqdm(f):
+                query, positive, negative = map(lambda x: x.split(), line.split('\t'))
+                query = query[0]
+                for p in positive:
+                    yield (query, p, negative)
 
     print "Loaded Data From " + file + "! \n"
 
@@ -171,6 +178,33 @@ class UbuntuSequentialDataSet(d.Dataset):
         l = [1] + [0] * len(nids)
 
         return q, c, l
+
+
+    def __len__(self):
+        return len(self.data)
+
+# TODO make data set for evaluation of dev/test
+class UbuntuEvaluationDataSet(d.Dataset):
+    '''Loads the training set for the Ubuntu Dataset with sequential word vectors'''
+
+    def __init__(self, file):
+        self.data = list(load_ubuntu_examples(file))
+
+    def __getitem__(self, index):
+        qid, pid, nids, bm25s = self.data[index]
+
+        nids = zip(nids, bm25s)
+
+        neg_samples = random.sample(nids, NUM_NEGATIVE_SAMPLES)
+        bm25s = [s[1] for s in neg_samples]
+        neg_samples = [s[0] for s in neg_samples]
+        candidate_set = [pid] + neg_samples
+
+        q = ubuntu_data[qid]
+        c = [ubuntu_data[i] for i in candidate_set]
+        l = [1] + [0] * len(nids)
+
+        return q, c, l, bm25s
 
 
     def __len__(self):
