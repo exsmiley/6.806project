@@ -41,7 +41,7 @@ def get_word_index(word):
     else:
         return 0
 
-def load_tokenized_text(fname, name, body_trim_length=100):
+def load_tokenized_text(fname, name, body_trim_length=100, title_trim_length=40):
     '''Creates dictionary of {id: (title, body)}
     This is okay to have in memory since it's just like 160MB or so...
     '''
@@ -53,19 +53,22 @@ def load_tokenized_text(fname, name, body_trim_length=100):
             sections = line.strip().split('\t')
             qid, title, body  = sections[0], sections[1], sections[2] if len(sections) > 2 else ''
 
-            b = np.zeros(100)
-            body = " ".join(body.split(' ')[:body_trim_length-1]) # Trims body to 100 words
-            print(len(body))
-            for i, word in enumerate(body):
+            b = np.zeros(body_trim_length)
+            b_mask = np.zeros(body_trim_length)
+            body = " ".join(body.split(' ')[:body_trim_length]) # Trims body to 100 words
+            for i, word in enumerate(body.split(' ')):
                 b[i] = get_word_index(word)
+                b_mask[i] = 1
 
-            t = np.zeros(100)
-            title = " ".join(title.split(' ')[:body_trim_length-1]) # Trims body to 100 words
+            t = np.zeros(title_trim_length)
+            t_mask = np.zeros(title_trim_length)
+            title = " ".join(title.split(' ')[:title_trim_length]) # Trims body to 40 words
 
-            for i, word in enumerate(title):
+            for i, word in enumerate(title.split(' ')):
                 t[i] = get_word_index(word)
+                t_mask[i] = 1
 
-            data[qid] = (t, b)
+            data[qid] = (t, t_mask, b, b_mask)
 
     print name + " Question Text Loaded! \n"
     return data
@@ -181,15 +184,18 @@ class UbuntuSequentialDataSet(d.Dataset):
         candidate_set = [pid] + neg_samples
 
         q = ubuntu_data[qid]
-        q_title, q_body = q
+        q_title, q_title_mask, q_body, q_body_mask = q
 
         c = [ubuntu_data[i] for i in candidate_set]
         c_titles = [i[0] for i in c]
-        c_bodies = [i[1] for i in c]
+        c_titles_mask = [i[1] for i in c]
+        c_bodies = [i[2] for i in c]
+        c_bodies_mask = [i[3] for i in c]
 
-        l = [1] + [0] * len(nids)
+        l = [1] + [0] * len(neg_samples)
 
-        return Tensor(q_title), Tensor(q_body), Tensor(c_titles), Tensor(c_bodies), Tensor(l)
+
+        return Tensor(q_title), Tensor(q_title_mask), Tensor(q_body), Tensor(q_body_mask), Tensor(c_titles), Tensor(c_titles_mask), Tensor(c_bodies), Tensor(c_bodies_mask), Tensor(l)
 
 
     def __len__(self):
@@ -205,18 +211,22 @@ class UbuntuEvaluationDataSet(d.Dataset):
     def __getitem__(self, index):
         qid, pid, nids, bm25s = self.data[index]
 
-        nids = zip(nids, bm25s)
-
         neg_samples = random.sample(nids, NUM_NEGATIVE_SAMPLES)
-        bm25s = [s[1] for s in neg_samples]
-        neg_samples = [s[0] for s in neg_samples]
         candidate_set = [pid] + neg_samples
 
         q = ubuntu_data[qid]
-        c = [ubuntu_data[i] for i in candidate_set]
-        l = [1] + [0] * len(nids)
+        q_title, q_title_mask, q_body, q_body_mask = q
 
-        return q, c, l, bm25s
+        c = [ubuntu_data[i] for i in candidate_set]
+        c_titles = [i[0] for i in c]
+        c_titles_mask = [i[1] for i in c]
+        c_bodies = [i[2] for i in c]
+        c_bodies_mask = [i[3] for i in c]
+
+        l = [1] + [0] * len(neg_samples)
+
+
+        return Tensor(q_title), Tensor(q_title_mask), Tensor(q_body), Tensor(q_body_mask), Tensor(c_titles), Tensor(c_titles_mask), Tensor(c_bodies), Tensor(c_bodies_mask), Tensor(l)
 
 
     def __len__(self):
