@@ -41,7 +41,7 @@ def get_word_index(word):
     else:
         return 0
 
-def load_tokenized_text(fname, name, body_trim_length=100, title_trim_length=40):
+def load_tokenized_text(fname, name, return_index=True, body_trim_length=100, title_trim_length=40):
     '''Creates dictionary of {id: (title, body)}
     This is okay to have in memory since it's just like 160MB or so...
     '''
@@ -53,19 +53,25 @@ def load_tokenized_text(fname, name, body_trim_length=100, title_trim_length=40)
             sections = line.strip().split('\t')
             qid, title, body  = sections[0], sections[1], sections[2] if len(sections) > 2 else ''
 
-            b = np.zeros(body_trim_length)
+            b = [0] * body_trim_length
             b_mask = np.zeros(body_trim_length)
             body = " ".join(body.split(' ')[:body_trim_length]) # Trims body to 100 words
             for i, word in enumerate(body.split(' ')):
-                b[i] = get_word_index(word)
+                if return_index:
+                    b[i] = get_word_index(word)
+                else:
+                    b[i] = word
                 b_mask[i] = 1
 
-            t = np.zeros(title_trim_length)
+            t = [0] * title_trim_length
             t_mask = np.zeros(title_trim_length)
             title = " ".join(title.split(' ')[:title_trim_length]) # Trims body to 40 words
 
             for i, word in enumerate(title.split(' ')):
-                t[i] = get_word_index(word)
+                if return_index:
+                    t[i] = get_word_index(word)
+                else:
+                    t[i] = word
                 t_mask[i] = 1
 
             data[qid] = (t, t_mask, b, b_mask)
@@ -75,9 +81,9 @@ def load_tokenized_text(fname, name, body_trim_length=100, title_trim_length=40)
 
 
 # use as global variable for reading from
-
+# embeddings, word_to_index = load_word_vector()
 ubuntu_data = load_tokenized_text('ubuntu_data/text_tokenized.txt.gz', 'Ubuntu')
-# android_data = load_tokenized_text('android_data/corpus.tsv.gz', 'Android')
+
 
 
 def load_ubuntu_examples(file):
@@ -91,6 +97,7 @@ def load_ubuntu_examples(file):
             for line in tqdm.tqdm(f):
                 query, positive, negative, bm25 = map(lambda x: x.split(), line.split('\t'))
                 query = query[0]
+
                 for p in positive:
                     yield (query, p, negative, bm25)
 
@@ -104,23 +111,30 @@ def load_ubuntu_examples(file):
 
     print "Loaded Data From " + file + "! \n"
 
-# def load_android_examples(dev=False, test=False):
-#     '''yields data in the form of
-#     (id, query (title, body), example (title, body), +1/-1)'''
-#     assert dev or test  # can only be dev or test sets
-#     neg_file = 'android_data/dev.neg.txt'
-#     pos_file = 'android_data/dev.pos.txt'
-#     if test:
-#         neg_file = 'android_data/test.neg.txt'
-#         pos_file = 'android_data/test.pos.txt'
-#     with open(neg_file) as f:
-#         for line in f:
-#             query, compare = line.split()
-#             yield (query, android_data[query], android_data[compare], -1)
-#     with open(pos_file) as f:
-#         for line in f:
-#             query, compare = line.split()
-#             yield (query, android_data[query], android_data[compare], 1)
+def load_android_examples(android_data, test=False):
+    '''yields data in the form of
+    (id, query (title, body), example (title, body), +1/-1)'''
+
+    neg_file = 'android_data/dev.neg.txt'
+    pos_file = 'android_data/dev.pos.txt'
+    if test:
+        neg_file = 'android_data/test.neg.txt'
+        pos_file = 'android_data/test.pos.txt'
+    d = {}
+
+    with open(pos_file) as f:
+        for line in f:
+            query, compare = line.split()
+            if query not in d:
+                d[query] = []
+
+    with open(neg_file) as f:
+        for line in f:
+            query, compare = line.split()
+            d[query].append(compare)
+
+    for q, c in d.items():
+        yield (q, c[0], c[1:])
 
 
 # I DON'T THINK WE NEED THIS BUT YOU DECIDE
@@ -175,7 +189,7 @@ class UbuntuSequentialDataSet(d.Dataset):
     '''Loads the training set for the Ubuntu Dataset with sequential word vectors'''
 
     def __init__(self, file):
-        self.data = list(load_ubuntu_examples(file))
+        self.data = list(load_ubuntu_examples(file))[:200]
 
     def __getitem__(self, index):
         qid, pid, nids = self.data[index]

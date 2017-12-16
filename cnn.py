@@ -21,29 +21,20 @@ class QA_CNN(nn.Module):
         self.embedding_layer.weight.data = torch.from_numpy(self.embeddings).float()
         self.dropout = nn.Dropout(dropout_prob)
 
-        self.conv1 = nn.Conv1d(emb_size, num_hidden, 3, stride=3)
+        self.conv1 = nn.Conv1d(emb_size, num_hidden, 3, padding=1)
         # self.conv2 = nn.Conv1d(6, 16, 5)
         # an affine operation: y = Wx + b
-        self.fc1 = nn.Linear(12800, num_hidden)
-        self.fc2 = nn.Linear(num_hidden, emb_size)
 
     def forward(self, sent, mask):
         x = self.embedding_layer(sent.long())
-        # x = self.dropout(sent)
-        # if x.size()[1] == 40:
-        #     print('hi mom')
-        #     x = F.pad(x, (2, 60), "reflect", 0)
-        x = x.view(32, 200, -1)
-        # print('hi')
-        print(x.size())
-        # Max pooling over a (2, 2) window
-        x = F.relu(self.conv1(x))
-        x = F.avg_pool1d(x, 2)
-        # If the size is a square you can only specify a single number
-        # x = F.max_pool1d(F.relu(self.conv2(x)), 2)
-        x = x.view(-1, self.num_flat_features(x))
-        x = F.relu(self.fc1(x))
-        x = self.fc2(x)
+        # batch_size, length = sent.size()
+        x = torch.transpose(x, 2, 1)
+        x = F.relu(self.dropout(self.conv1(x)))
+        x = torch.transpose(x, 2, 1)
+        masked = torch.mul(x, mask.unsqueeze(2).expand_as(x))
+        sum_out = masked.sum(dim=1)
+        count = mask.sum(dim=1).unsqueeze(1).expand_as(sum_out)
+        x =  torch.div(sum_out, count)
         return x
 
     def num_flat_features(self, x):
@@ -61,7 +52,7 @@ def main():
     margin = 0.2
     momentum = 0.9
     num_epoches = 50
-    num_hidden = 800
+    num_hidden = 667
     emb_size = 200
 
 
@@ -93,4 +84,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-    

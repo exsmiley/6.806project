@@ -27,10 +27,14 @@ class QA_LSTM(nn.Module):
         x = self.dropout(sent)
         lstm_out, hidden = self.lstm(x)
         lstm_out = self.dropout(lstm_out)
+        print(lstm_out.size())
+        exit()
         masked = torch.mul(lstm_out, mask.unsqueeze(2).expand_as(lstm_out))
         sum_out = masked.sum(dim=1)
         count = mask.sum(dim=1).unsqueeze(1).expand_as(sum_out)
-        return torch.div(sum_out, count)
+        x =  torch.div(sum_out, count)
+        print(torch.div(sum_out, count))
+        return x
 
 
 
@@ -59,9 +63,9 @@ def run_model(train_data, dev_data, model, is_training, params):
         if is_training:
             loss = run_epoch(train_data, model, optimizer, is_training, params)
 
-            if epoch % 5 == 0:
-                map, mrr, p_at_one, p_at_five = run_epoch(dev_data, model, optimizer, False, params)
-                print("MAP: {0}, MRR: {1}, P@1: {2}, P@5: {3}".format(map, mrr, p_at_one, p_at_five))
+
+            map, mrr, p_at_one, p_at_five = run_epoch(dev_data, model, optimizer, False, params)
+            print("MAP: {0}, MRR: {1}, P@1: {2}, P@5: {3}".format(map, mrr, p_at_one, p_at_five))
         else:
             map, mrr, p_at_one, p_at_five = run_epoch(train_data, model, optimizer, is_training, params)
             print("MAP: {0}, MRR: {1}, P@1: {2}, P@5: {3}".format(map, mrr, p_at_one, p_at_five))
@@ -77,7 +81,7 @@ def run_epoch(data, model, optimizer, is_training, params):
     running_loss = 0.0
 
     model.train() if is_training else model.eval()
-
+    print(len(loader))
     for i, data in tqdm.tqdm(enumerate(loader)):
         # get the inputs
 
@@ -98,8 +102,7 @@ def run_epoch(data, model, optimizer, is_training, params):
 
         q_enc = (model(q_body, q_body_mask) + model(q_title, q_title_mask)) / 2
 
-        c_enc = (model(c_titles.view(batch_size * num_c, 40), c_titles_mask.view(batch_size * num_c, 40)) +
-                model(c_bodies.view(batch_size * num_c, 100), c_bodies_mask.view(batch_size * num_c, 100))) / 2
+        c_enc = (model(c_titles.view(-1, 40), c_titles_mask.view(-1, 40)) + model(c_bodies.view(-1, 100), c_bodies_mask.view(-1, 100))) / 2
 
         q_enc = q_enc.view(batch_size, 1, -1).repeat(1, num_c, 1)
         c_enc = c_enc.view(batch_size, num_c, -1)
@@ -115,15 +118,14 @@ def run_epoch(data, model, optimizer, is_training, params):
             running_loss += loss.data[0]
         else:
             s, i = sims.sort(dim=1, descending=True)
-            predicted.extend([labels.data[x][i.data[x]] for x in range(batch_size)])
-
+            predicted.extend([labels[x][i.data[x]] for x in range(q_title.size()[0])])
     return running_loss if is_training else Evaluation(predicted).evaluate()
 
 def main():
 
     batch_size = 32
     dropout_prob = 0.1
-    learning_rate = 0.1
+    learning_rate = 1e-3
     margin = 0.2
     momentum = 0.9
     num_epoches = 50
