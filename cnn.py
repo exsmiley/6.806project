@@ -4,28 +4,42 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.autograd import Variable
 from prepare import *
+import tqdm
+from max_margin_loss import max_margin_loss
+from evaluation import Evaluation
+from lstm import *
 
 
 class QA_CNN(nn.Module):
 
-    def __init__(self):
+    def __init__(self, num_hidden, emb_size, embeddings, dropout_prob):
         super(QA_CNN, self).__init__()
-        self.conv1 = nn.Conv1d(2, 6, 5)
-        self.conv2 = nn.Conv1d(6, 16, 5)
-        # an affine operation: y = Wx + b
-        self.fc1 = nn.Linear(752, 120)
-        self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84, 1)
+        self.num_hidden = num_hidden
+        self.emb_size = emb_size
+        self.embeddings = embeddings
+        self.embedding_layer = nn.Embedding(1, self.emb_size)
+        self.embedding_layer.weight.data = torch.from_numpy(self.embeddings).float()
+        self.dropout = nn.Dropout(dropout_prob)
 
-    def forward(self, x):
+        self.conv1 = nn.Conv1d(emb_size, num_hidden, 1)
+        # self.conv2 = nn.Conv1d(6, 16, 5)
+        # an affine operation: y = Wx + b
+        self.fc1 = nn.Linear(79200, num_hidden)
+        self.fc2 = nn.Linear(num_hidden, emb_size)
+
+    def forward(self, sent, mask):
+        x = self.embedding_layer(sent.long())
+        # x = self.dropout(sent)
+        print('hi')
+        print(x.size())
         # Max pooling over a (2, 2) window
-        x = F.max_pool1d(F.relu(self.conv1(x)), 2)
+        x = F.relu(self.conv1(x))
+        x = F.avg_pool1d(x, 2)
         # If the size is a square you can only specify a single number
-        x = F.max_pool1d(F.relu(self.conv2(x)), 2)
+        # x = F.max_pool1d(F.relu(self.conv2(x)), 2)
         x = x.view(-1, self.num_flat_features(x))
         x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = self.fc3(x)
+        x = self.fc2(x)
         return x
 
     def num_flat_features(self, x):
@@ -36,66 +50,42 @@ class QA_CNN(nn.Module):
         return num_features
 
 
-def model_size():
-    net = QA_CNN()
-    print net
-    params = list(net.parameters())
-    total = 0
-    for param in params:
-        this = 1
-        for p in param.size():
-            this *= p
-        total += this
-    print total
-    torch.save(net, 'test.pt')
-    net2 = torch.load('test.pt')
-    # print list(net2.parameters())[0]
-
-
 def main():
-    dataset = UbuntuDataSet()
-    loader = torch.utils.data.DataLoader(dataset, batch_size=4, shuffle=True)
-    print "Loaded data..."
-    net = QA_CNN()
-    
-    criterion = nn.MarginRankingLoss(1)
-    optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9) # Does the update
+    batch_size = 32
+    dropout_prob = 0.1
+    learning_rate = 0.01
+    margin = 0.2
+    momentum = 0.9
+    num_epoches = 50
+    num_hidden = 800
+    emb_size = 200
 
-    for epoch in range(100):  # loop over the dataset multiple times
-        print "Running epoch:", epoch+1
-        running_loss = 0.0
-        for i, data in enumerate(loader, 0):
-            # get the inputs
-            input1, input2, labels = data
 
-            # wrap them in Variable
-            input1, input2, labels = Variable(input1), Variable(input2), Variable(labels)
-            # input1.float()
-            # input2.float()
-            labels = labels.float()
-            # zero the parameter gradients
-            optimizer.zero_grad()
+    params = {'num_epoches' : num_epoches, 'momentum' : momentum,
+                'margin' : margin, 'learning_rate' : learning_rate,
+                'batch_size' : batch_size}
 
-            # forward + backward + optimize
-            output1 = net(input1).float()
-            output2 = net(input2).float()
-            # print output1, output2, labels
-            # labels = Variable(torch.ones(output1.size()[1]))
-            loss = criterion(output1, output2, labels)
-            loss.backward()
-            optimizer.step()
+    train_data = UbuntuSequentialDataSet('ubuntu_data/train_random.txt')
+    dev_data = UbuntuEvaluationDataSet('ubuntu_data/dev.txt')
+    test_data = UbuntuEvaluationDataSet('ubuntu_data/test.txt')
 
-            # print statistics
-            running_loss += loss.data[0]
-            if i % 2000 == 1999:    # print every 2000 mini-batches
-                print('[%d, %5d] loss: %.3f' %
-                      (epoch + 1, i + 1, running_loss / 2000))
-                running_loss = 0.0
-        if epoch % 5 == 0:
-            torch.save(net, 'mytraining{}.pt'.format(epoch))
-    torch.save(net, 'mytraininglast.pt')
+    model = QA_CNN(num_hidden, emb_size, embeddings, dropout_prob)
 
-    print('Finished Training')
+    print('Started Training...\n')
+
+    is_training = True
+
+    run_model(train_data, dev_data, model, is_training, params)
+
+    print('\nFinished Training!\n')
+
+    print('Started Evaluating on Dev Set...\n')
+
+    is_training = False
+
+    run_model(test_data, model, is_training, params)
+
+    print('\nFinished Evaluating on Dev Set!\n')
 
 if __name__ == '__main__':
     main()
