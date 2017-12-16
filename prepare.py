@@ -127,6 +127,7 @@ def load_android_examples(android_data, test=False):
             query, compare = line.split()
             if query not in d:
                 d[query] = []
+            d[query].append(compare)
 
     with open(neg_file) as f:
         for line in f:
@@ -189,7 +190,7 @@ class UbuntuSequentialDataSet(d.Dataset):
     '''Loads the training set for the Ubuntu Dataset with sequential word vectors'''
 
     def __init__(self, file):
-        self.data = list(load_ubuntu_examples(file))[:200]
+        self.data = list(load_ubuntu_examples(file))
 
     def __getitem__(self, index):
         qid, pid, nids = self.data[index]
