@@ -21,16 +21,20 @@ class QA_CNN(nn.Module):
         self.embedding_layer.weight.data = torch.from_numpy(self.embeddings).float()
         self.dropout = nn.Dropout(dropout_prob)
 
-        self.conv1 = nn.Conv1d(emb_size, num_hidden, 1)
+        self.conv1 = nn.Conv1d(emb_size, num_hidden, 3, stride=3)
         # self.conv2 = nn.Conv1d(6, 16, 5)
         # an affine operation: y = Wx + b
-        self.fc1 = nn.Linear(79200, num_hidden)
+        self.fc1 = nn.Linear(12800, num_hidden)
         self.fc2 = nn.Linear(num_hidden, emb_size)
 
     def forward(self, sent, mask):
         x = self.embedding_layer(sent.long())
         # x = self.dropout(sent)
-        print('hi')
+        # if x.size()[1] == 40:
+        #     print('hi mom')
+        #     x = F.pad(x, (2, 60), "reflect", 0)
+        x = x.view(32, 200, -1)
+        # print('hi')
         print(x.size())
         # Max pooling over a (2, 2) window
         x = F.relu(self.conv1(x))
@@ -89,4 +93,4 @@ def main():
 
 if __name__ == '__main__':
     main()
-    # model_size()
+    
