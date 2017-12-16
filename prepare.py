@@ -138,54 +138,6 @@ def load_android_examples(android_data, test=False):
         yield (q, c[0], c[1:])
 
 
-# I DON'T THINK WE NEED THIS BUT YOU DECIDE
-
-# def example_to_word_vector(query, pos, neg):
-#     query = ''.join(query).split()
-#     pos = ''.join(pos).split()
-#     neg = ''.join(neg).split()
-#
-#     query_vec = np.zeros(200)
-#     pos_vec = np.zeros(200)
-#     neg_vec = np.zeros(200)
-#     count = 0
-#     for word in query:
-#         if word in embeddings:
-#             count += 1
-#             query_vec += embeddings[word]
-#     if count > 0:
-#         query_vec = query_vec/count
-#         count = 0
-#     for word in pos:
-#         if word in embeddings:
-#             pos_vec += embeddings[word]
-#             count += 1
-#     if count > 0:
-#         pos_vec = pos_vec/count
-#         count = 0
-#     for word in neg:
-#         if word in embeddings:
-#             neg_vec += embeddings[word]
-#             count += 1
-#     if count > 0:
-#         neg_vec = neg_vec/count
-#     return (query_vec, pos_vec, neg_vec)
-#
-#
-# class UbuntuDataSet(d.Dataset):
-#     '''Loads the training set for the Ubuntu Dataset'''
-#
-#     def __init__(self):
-#         self.data = list(load_ubuntu_examples())
-#
-#     def __getitem__(self, index):
-#         (query_vec, pos_vec, neg_vec) = example_to_word_vector(*self.data[index])
-#         return torch.from_numpy(np.vstack((query_vec, pos_vec))).float(), torch.from_numpy(np.vstack((query_vec, neg_vec))).float(), 1.0
-#
-#     def __len__(self):
-#         return len(self.data)
-
-
 class UbuntuSequentialDataSet(d.Dataset):
     '''Loads the training set for the Ubuntu Dataset with sequential word vectors'''
 

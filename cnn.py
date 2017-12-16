@@ -48,10 +48,10 @@ class QA_CNN(nn.Module):
 def main():
     batch_size = 32
     dropout_prob = 0.1
-    learning_rate = 0.01
+    learning_rate = 0.001
     margin = 0.2
-    momentum = 0.9
-    num_epoches = 50
+    momentum = 0
+    num_epoches = 3
     num_hidden = 667
     emb_size = 200
 
@@ -78,9 +78,20 @@ def main():
 
     is_training = False
 
-    run_model(test_data, model, is_training, params)
+    params['num_epoches'] = 1
+
+    run_model(dev_data, None, model, is_training, params)
 
     print('\nFinished Evaluating on Dev Set!\n')
+
+
+    print('Started Evaluating on Test Set...\n')
+
+    is_training = False
+
+    run_model(test_data, None, model, is_training, params)
+
+    print('\nFinished Evaluating on Test Set!\n')
 
 if __name__ == '__main__':
     main()

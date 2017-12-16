@@ -59,17 +59,19 @@ def run_model(train_data, dev_data, model, is_training, params):
     optimizer = optim.SGD(model.parameters(), lr=learning_rate, momentum=momentum)
 
     for epoch in range(num_epoches):
-        print("-------\nEpoch {}:\n".format(epoch))
-        if is_training:
-            loss = run_epoch(train_data, model, optimizer, is_training, params)
 
+        if is_training:
+            print("-------\nEpoch {}:\n".format(epoch))
+            loss = run_epoch(train_data, model, optimizer, is_training, params)
+            print('Train Loss: {}'.format(loss))
 
             map, mrr, p_at_one, p_at_five = run_epoch(dev_data, model, optimizer, False, params)
             print("MAP: {0}, MRR: {1}, P@1: {2}, P@5: {3}".format(map, mrr, p_at_one, p_at_five))
+
         else:
             map, mrr, p_at_one, p_at_five = run_epoch(train_data, model, optimizer, is_training, params)
             print("MAP: {0}, MRR: {1}, P@1: {2}, P@5: {3}".format(map, mrr, p_at_one, p_at_five))
-        print('Train Loss: {}'.format(loss))
+
 
 
 
@@ -84,41 +86,43 @@ def run_epoch(data, model, optimizer, is_training, params):
     print(len(loader))
     for i, data in tqdm.tqdm(enumerate(loader)):
         # get the inputs
+        if i != len(loader) - 1:
+            q_title, q_title_mask, q_body, q_body_mask, c_titles, c_titles_mask, c_bodies, c_bodies_mask, labels = data
 
-        q_title, q_title_mask, q_body, q_body_mask, c_titles, c_titles_mask, c_bodies, c_bodies_mask, labels = data
 
+            predicted = []
+            # wrap them in Variable
+            q_title, q_title_mask, q_body, q_body_mask = Variable(q_title), Variable(q_title_mask), Variable(q_body), Variable(q_body_mask)
 
-        predicted = []
-        # wrap them in Variable
-        q_title, q_title_mask, q_body, q_body_mask = Variable(q_title), Variable(q_title_mask), Variable(q_body), Variable(q_body_mask)
+            c_titles, c_titles_mask, c_bodies, c_bodies_mask = Variable(c_titles), Variable(c_titles_mask), Variable(c_bodies), Variable(c_bodies_mask)
 
-        c_titles, c_titles_mask, c_bodies, c_bodies_mask = Variable(c_titles), Variable(c_titles_mask), Variable(c_bodies), Variable(c_bodies_mask)
+            # zero the parameter gradients
+            if is_training:
+                optimizer.zero_grad()
 
-        # zero the parameter gradients
-        if is_training:
-            optimizer.zero_grad()
+            num_c = c_titles.size()[1]
 
-        num_c = c_titles.size()[1]
+            q_enc = (model(q_body, q_body_mask) + model(q_title, q_title_mask)) / 2
 
-        q_enc = (model(q_body, q_body_mask) + model(q_title, q_title_mask)) / 2
+            c_enc = (model(c_titles.view(-1, 40), c_titles_mask.view(-1, 40)) + model(c_bodies.view(-1, 100), c_bodies_mask.view(-1, 100))) / 2
 
-        c_enc = (model(c_titles.view(-1, 40), c_titles_mask.view(-1, 40)) + model(c_bodies.view(-1, 100), c_bodies_mask.view(-1, 100))) / 2
+            q_enc = q_enc.view(batch_size, 1, -1).repeat(1, num_c, 1)
+            c_enc = c_enc.view(batch_size, num_c, -1)
 
-        q_enc = q_enc.view(batch_size, 1, -1).repeat(1, num_c, 1)
-        c_enc = c_enc.view(batch_size, num_c, -1)
+            cos_sim = torch.nn.CosineSimilarity(2)
+            sims = cos_sim(q_enc, c_enc)
 
-        cos_sim = torch.nn.CosineSimilarity(2)
-        sims = cos_sim(q_enc, c_enc)
+            if is_training:
 
-        if is_training:
-
-            loss = max_margin_loss(sims, margin)
-            loss.backward()
-            optimizer.step()
-            running_loss += loss.data[0]
-        else:
-            s, i = sims.sort(dim=1, descending=True)
-            predicted.extend([labels[x][i.data[x]] for x in range(q_title.size()[0])])
+                loss = max_margin_loss(sims, margin)
+                loss.backward()
+                optimizer.step()
+                running_loss += loss.data[0]
+            else:
+                s, i = sims.sort(dim=1, descending=True)
+                predicted.extend([labels[x][i.data[x]] for x in range(q_title.size()[0])])
+    if is_training:
+        torch.save(model, 'cnn2.pt')
     return running_loss if is_training else Evaluation(predicted).evaluate()
 
 def main():
@@ -147,7 +151,7 @@ def main():
 
     is_training = True
 
-    run_model(train_data, dev_data, model, is_training, params)
+    run_model(train_data, model, is_training, params)
 
     print('\nFinished Training!\n')
 
@@ -155,9 +159,18 @@ def main():
 
     is_training = False
 
-    run_model(test_data, model, is_training, params)
+    run_model(dev_data, model, is_training, params)
 
     print('\nFinished Evaluating on Dev Set!\n')
+
+
+    print('Started Evaluating on Test Set...\n')
+
+    is_training = False
+
+    run_model(test_data, model, is_training, params)
+
+    print('\nFinished Evaluating on Test Set!\n')
 
 if __name__ == '__main__':
     main()

@@ -15,7 +15,7 @@ question_ids = {}
 contents = []
 count = 0
 
-fil = lambda token: token not in string.punctuation
+fil = lambda token: token not in string.punctuation and not token.isdigit()
 
 for q, v in android_data.items():
     t, t_mask, b, b_mask = v
@@ -37,7 +37,7 @@ vectorizer = TfidfVectorizer(lowercase=True, stop_words=stop_words, use_idf=True
 vs = vectorizer.fit_transform(contents)
 
 res = []
-for q, p, ns in tqdm.tqdm(android_dev):
+for q, p, ns in tqdm.tqdm(android_test):
     sims = []
     question = vs[question_ids[q]]
     for candidate in [p]+ns:
