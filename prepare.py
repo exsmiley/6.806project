@@ -208,6 +208,10 @@ class DomainDataSet(d.Dataset):
         android_items = self.android_data.keys()
         self.data = []
 
+        # shuffle since expensive to go over all of the ids
+        random.shuffle(ubuntu_items)
+        random.shuffle(android_items)
+
         # iterate over ubuntu and android data and get roughly equal numbers
         android_i = 0
         ubuntu_i = 0
