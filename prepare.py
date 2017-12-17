@@ -168,6 +168,36 @@ class UbuntuSequentialDataSet(d.Dataset):
     def __len__(self):
         return len(self.data)
 
+class AndroidDataSet(d.Dataset):
+    '''Loads the training set for the Ubuntu Dataset with sequential word vectors'''
+
+    def __init__(self, test):
+        self.android_data = load_tokenized_text('android_data/corpus.tsv.gz', 'Android', return_index=True)
+        self.data = list(load_android_examples(self.android_data, test=test))
+
+    def __getitem__(self, index):
+        qid, pid, nids = self.data[index]
+
+        neg_samples = random.sample(nids, NUM_NEGATIVE_SAMPLES)
+        candidate_set = [pid] + neg_samples
+
+        q = self.android_data[qid]
+        q_title, q_title_mask, q_body, q_body_mask = q
+
+        c = [self.android_data [i] for i in candidate_set]
+        c_titles = [i[0] for i in c]
+        c_titles_mask = [i[1] for i in c]
+        c_bodies = [i[2] for i in c]
+        c_bodies_mask = [i[3] for i in c]
+
+        l = [1] + [0] * len(neg_samples)
+
+        return Tensor(q_title), Tensor(q_title_mask), Tensor(q_body), Tensor(q_body_mask), Tensor(c_titles), Tensor(c_titles_mask), Tensor(c_bodies), Tensor(c_bodies_mask), Tensor(l)
+
+
+    def __len__(self):
+        return len(self.data)
+
 # TODO make data set for evaluation of dev/test
 class UbuntuEvaluationDataSet(d.Dataset):
     '''Loads the training set for the Ubuntu Dataset with sequential word vectors'''
@@ -200,41 +230,6 @@ class UbuntuEvaluationDataSet(d.Dataset):
         return len(self.data)
 
 
-class DomainDataSet(d.Dataset):
-
-    def __init__(self):
-        ubuntu_items = ubuntu_data.keys()
-        self.android_data = load_tokenized_text('android_data/corpus.tsv.gz', 'Android', return_index=True)
-        android_items = self.android_data.keys()
-        self.data = []
-
-        # shuffle since expensive to go over all of the ids
-        random.shuffle(ubuntu_items)
-        random.shuffle(android_items)
-
-        # iterate over ubuntu and android data and get roughly equal numbers
-        android_i = 0
-        ubuntu_i = 0
-        while len(self.data) < 128*100:
-            if random.random() < 0.5 and ubuntu_i < len(ubuntu_items):
-                self.data.append((ubuntu_items[ubuntu_i], 0))
-                ubuntu_i += 1
-            elif android_i < len(android_items):
-                self.data.append((android_items[android_i], 1))
-                android_i += 1
-
-    def __getitem__(self, index):
-        qid, label = self.data[index]
-        if label == 0:
-            t, t_mask, b, b_mask = ubuntu_data[qid]
-        else:
-            t, t_mask, b, b_mask = self.android_data[qid]
-        return (Tensor(t), Tensor(t_mask), Tensor(b), Tensor(b_mask), label)
-
-    def __len__(self):
-        return len(self.data)
-
-
 if __name__ == '__main__':
-    s = DomainDataSet()
+    s = UbuntuSequentialDataSet()
     print "total time:", time.time()-start
